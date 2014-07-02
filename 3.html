@@ -1,0 +1,126 @@
+<html>
+  <script src="./jquery-1.11.0.min.js"></script>
+  <link rel="stylesheet" type="text/css" href="./tutorial.css">
+  <head>
+  </head>
+  <body>
+    <script id="v_ex_normal" type="x-shader/x-fragment">
+varying vec3 vary_normal;
+void main() {
+  vary_normal = normal;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}
+    </script>
+    <script id="f_ex_normal" type="x-shader/x-vertex">
+varying vec3 vary_normal;
+void main() {
+  gl_FragColor = vec4((vary_normal.xyz + vec3(1.)) / 2., 1.);
+}
+    </script>
+
+    <script id="v_ex_texture" type="x-shader/x-fragment">
+/* vertex shader */
+varying vec2 vary_uv;
+
+void main() {
+  vary_uv = uv;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}
+    </script>
+    <script id="f_ex_texture" type="x-shader/x-vertex">
+varying vec2 vary_uv;
+
+uniform sampler2D paintingTexture;
+
+void main() {
+  vec4 pixelColor = texture2D(paintingTexture, vary_uv.yx);
+  gl_FragColor = pixelColor;
+}
+    </script>
+    <script id="v_ex_diffuse" type="x-shader/x-fragment">
+varying vec3 vary_normal;
+varying vec2 vary_uv;
+
+void main() {
+  vary_normal = normal;
+  vary_uv = uv;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}
+    </script>
+    <script id="f_ex_diffuse" type="x-shader/x-vertex">
+varying vec3 vary_normal;
+varying vec2 vary_uv; 
+
+uniform sampler2D paintingTexture;
+
+void main() {
+  vec3 lightDir = normalize(vec3(1., 1., 1.));
+  vec3 viewDir = normalize(vec3(0., 0., 1.));
+
+  vec3 reflectDir = reflect(-lightDir, vary_normal);
+  float specAngle = max(dot(reflectDir, viewDir), 0.0);
+  float specular = pow(specAngle, 16.0); 
+
+  float i = max(0., cos(dot(-lightDir, normalize(vary_normal))));
+
+  gl_FragColor = vec4(vec3(0.5, 0., 0.) * i + vec3(1.) * specular, 1.);
+}
+    </script>
+
+
+    <script id="v_ex_" type="x-shader/x-fragment">
+    </script>
+    <script id="f_ex_" type="x-shader/x-vertex">
+    </script>
+
+    Now it's time to try using the vertex and fragment shader together. The <tt>varying</tt> keyword can be used to pass data computed in the vertex shader to the fragment shader. Remember that the vertex shader always operates before the fragment shader (as the fragments are determined by the vertex data), so <tt>varying</tt> variables cannot be used to send data to the vertex shader from the fragment shader. Additionally, since there is not a 1:1 mapping of vertices to fragments, varying variables on the fragment shader are automatically interpolated from the three vertices that created the fragment (based on the position of the fragment relative to the vertices, just like Barycentric interpolation).<br><br>
+
+    To create a <tt>varying</tt> variable, just do something like:<br>
+    <tt>
+    // vertex shader<br>
+    varying vec3 my_varying_var;<br>
+    ...<br>
+    my_varying_var = vec3(a, b, c);<br>
+    ...<br>
+    <br>
+    // fragment shader<br>
+    varying vec3 my_varying_var;<br>
+    ...<br>
+    // do something with my_varying_var here<br>
+    <br>
+    </tt><br>
+
+    Using a <tt>varying</tt> value and both the vertex and fragment shaders, write a program (vertex and fragment shader) that displays the vertex normals (similar to the normal output option in the raytracer). Remember that a normal value may range from [-1, 1], while color values range from [0, 1], so adjust accordingly. Note: don't name your varying variable"<tt>normal</tt>", since that name is already in use by one of our uniforms. Also note the smooth automatic normal interpolation between fragments (which can very easily let us get fast Phong shading).
+    <div id="vfex1"></div><br>
+
+    We should have enough knowledge of shaders to be able to render textures easily now. Pass the uniform "<tt>uv</tt>" from the vertex shader into the fragment shader like we did with the <tt>normal</tt> uniform before. Then, to get the color of a texture at some coordinates (x, y), we just use the <a href="http://www.opengl.org/sdk/docs/man4/html/texture.xhtml"<tt>texture2D()</tt></a> function. The first argument for <tt>texture2D()</tt> is a <tt>sampler2D</tt>, which is just some image data passed to the shader through a uniform. You have two <tt>sampler2D</tt> uniforms available to you: <tt>paintingTexture</tt> and <tt>checkerboardTexture</tt>. Use either one for the first argument. The second argument is just a <tt>vec2</tt> from (0, 0) to (1, 1). We can pass the UV value here for typical texture mapping, but using other inputs can lead to some cool effects.
+    <div id="vfex2"></div><br>
+
+    <div id="vfex3"></div><br>
+
+    <a href="2.html">&lt; Fragment shaders</a>
+    <a style="float:right;" href="index.html">Sandbox &gt;</a>
+
+  <script>
+    $(function() {
+      function addShaderFrame(out, urlParams) {
+        $('<iframe>', {
+          src: 'index.html?' + urlParams,
+          scrolling: 'no',
+        }).appendTo(out);
+      }
+
+      function shaderIdToSrc(id) {
+        return $('#' + id).get(0).textContent;
+      }
+
+      addShaderFrame('#vfex1');
+      addShaderFrame('#vfex1', 'hideEditor=all&fragmentSrc=' + shaderIdToSrc('f_ex_normal') + '&vertexSrc=' + shaderIdToSrc('v_ex_normal'));
+
+      addShaderFrame('#vfex2');
+      addShaderFrame('#vfex2', 'hideEditor=all&fragmentSrc=' + shaderIdToSrc('f_ex_texture') + '&vertexSrc=' + shaderIdToSrc('v_ex_texture'));
+
+      //addShaderFrame('#vfex3', 'hideEditor=all&fragmentSrc=' + shaderIdToSrc('f_ex_diffuse') + '&vertexSrc=' + shaderIdToSrc('v_ex_diffuse'));
+    });
+  </script>
+</html>

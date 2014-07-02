@@ -1,0 +1,388 @@
+<html>
+  <script src="./jquery-1.11.0.min.js"></script>
+  <script src="./three.min.js"></script>
+  <script src="./codemirror.min.js"></script>
+  <link rel="stylesheet" type="text/css" href="./style.css">
+  <link rel="stylesheet" type="text/css" href="./codemirror.css">
+  <body>
+    <div id="stage" width="100%" height="100%"></div>
+    <div id="editorContainer" class="editorContainer">
+      <div id="editors">
+        <div id="vertexContainer">
+          <span class="shaderTitle">Vertex shader</span>
+          <div id="vertexEditor"></div>
+        </div>
+        <div id="fragmentContainer">
+          <span class="shaderTitle">Fragment shader</span>
+          <div id="fragmentEditor"></div>
+        </div>
+      </div>
+      <div id="errorLog" class="errorLog">
+      </div>
+    </div>
+
+    <div class="modelContainer">
+      <div class="modelTitle">
+        <input type="radio" name="model" value="torus" checked>Torus</input>
+        <input type="radio" name="model" value="teapot">Teapot</input>
+        <input type="radio" name="model" value="square">Square</input>
+        <input type="radio" name="model" value="cube">Cube</input>
+        <input type="radio" name="model" value="icosahedron">Icosahedron</input>
+        <input type="radio" name="model" value="sphere">Sphere</input>
+        <input type="radio" name="model" value="knot">Knot</input>
+        <input type="checkbox" id="wireframeCheckbox">Enable Wireframe</input>
+      </div>
+    </div>
+
+    <div id="hideButton" class="hideButton">
+      Hide / Show
+    </div>
+  </body>
+  <script id="defaultVertexShader" type="x-shader/x-vertex">
+/* Vertex shader */
+/* some useful values preset for you: position, normal, uv, uv2, projectionMatrix, modelviewMatrix */
+precision highp float;
+precision highp int;
+
+uniform float time;
+uniform vec2 resolution;
+uniform vec2 mouse;
+uniform sampler2D checkerboardTexture, paintingTexture;
+
+void main() {
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}
+  </script>
+  <script id="defaultFragmentShader" type="x-shader/x-fragment">
+/* Fragment shader */
+precision highp float;
+precision highp int;
+
+uniform float time;
+uniform vec2 resolution;
+uniform vec2 mouse;
+uniform sampler2D checkerboardTexture, paintingTexture;
+
+void main() {
+  gl_FragColor = vec4(1.); 
+}
+  </script>
+  <script>
+    $(function() {
+      // handle url args if any
+      // from http://stackoverflow.com/questions/1403888/get-escaped-url-parameter
+      function getURLParameter(name) {
+        var ret = decodeURI(
+          (RegExp(name + '=' + '(.+?)(&|$)').exec(location.search)||[,null])[1]
+        );
+        if (ret == 'null') return undefined;
+          else return ret;
+      }
+      var hideParam = getURLParameter('hideEditor');
+      if (hideParam) {
+        if (hideParam == 'all') {
+          $('#editorContainer').hide();
+          $('#hideButton').hide();
+        }
+        else if (hideParam == 'vertexShader') {
+          $('#vertexContainer').hide();
+          $('#fragmentContainer').css('height', '90%');
+        }
+        else if (hideParam == 'fragmentShader') {
+          $('#fragmentContainer').hide();
+          $('#vertexContainer').css('height', '90%');
+        }
+        else {
+          throw new Error('unexpected hideEditor type ' + hideParam);
+        }
+      }
+      var vertexParam = getURLParameter('vertexSrc');
+      if (vertexParam) {
+        $('#defaultVertexShader').get(0).textContent = vertexParam;
+      }
+      var fragmentParam = getURLParameter('fragmentSrc');
+      if (fragmentParam) {
+        $('#defaultFragmentShader').get(0).textContent = fragmentParam;
+      }
+
+      // -- editor code --
+      function testShader(vertexSrc, fragmentSrc) {
+        var gl = renderer.context;
+        var tempProgram = gl.createProgram();
+        var tempVertexShader = gl.createShader(gl.VERTEX_SHADER);
+        var tempFragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
+        // three js automatically adds some useful uniforms, so we need to add them here also
+        var vertexPrefix = "uniform mat4 modelMatrix;uniform mat4 modelViewMatrix;uniform mat4 projectionMatrix;uniform mat4 viewMatrix;uniform mat3 normalMatrix;uniform vec3 cameraPosition;attribute vec3 position;attribute vec3 normal;attribute vec2 uv;attribute vec2 uv2;"
+
+        gl.shaderSource(tempVertexShader, vertexPrefix + vertexSrc);
+        gl.shaderSource(tempFragmentShader, fragmentSrc);
+        gl.compileShader(tempVertexShader);
+        gl.compileShader(tempFragmentShader);
+
+        // clear out error notifications
+        for (var i = 0; i < vertexMirror.lineCount(); i++) {
+          var line = vertexMirror.getLineHandle(i);
+          vertexMirror.removeLineClass(line, 'background', 'CodeMirror-error-background');
+        }
+        for (var i = 0; i < fragmentMirror.lineCount(); i++) {
+          var line = fragmentMirror.getLineHandle(i);
+          fragmentMirror.removeLineClass(line, 'background', 'CodeMirror-error-background');
+        }
+        $('#errorLog').html('');
+
+        try {
+          if (!gl.getShaderParameter(tempVertexShader, gl.COMPILE_STATUS)) {
+            throw new Error('vertex compile failed', gl.getShaderInfoLog(tempVertexShader));
+          }
+          if (!gl.getShaderParameter(tempFragmentShader, gl.COMPILE_STATUS)) {
+            throw new Error('fragment compile failed', gl.getShaderInfoLog(tempFragmentShader));
+          }
+
+          gl.attachShader(tempProgram, tempVertexShader);
+          gl.attachShader(tempProgram, tempFragmentShader);
+
+          gl.linkProgram(tempProgram);
+          if (!gl.getProgramParameter(tempProgram, gl.LINK_STATUS)) {
+            throw new Error('program link failed', gl.getProgramInfoLog(tempProgram));
+          }
+        }
+        catch(e) {
+          function scanAndHighlight(type, mirror, log) {
+            var errorPrefix = 'ERROR: 0:';
+            log = log.split('\n');
+            for (var i = 0; i < log.length; i++) {
+              console.log(log);
+              if (log[i].indexOf(errorPrefix) == 0) {
+                // "ERROR: 0:XX: ..." -> "0:XX:" -> "XX"
+                if (mirror) {
+                  var lineNum = log[i].split(' ')[1].split(':')[1];
+                  var line = mirror.getLineHandle(lineNum - 1);
+                  mirror.addLineClass(line, 'background', 'CodeMirror-error-background');
+                }
+              }
+              $('#errorLog').append(type + ': ' + log[i]);
+            }
+          }
+
+          if (e.message == 'vertex compile failed') {
+            var log = gl.getShaderInfoLog(tempVertexShader);
+            scanAndHighlight('vertex shader', vertexMirror, log);
+          }
+          else if (e.message == 'fragment compile failed') {
+            var log = gl.getShaderInfoLog(tempFragmentShader);
+            scanAndHighlight('fragment shader', fragmentMirror, log);
+          }
+          else if (e.message == 'program link failed') {
+            var log = gl.getProgramInfoLog(tempProgram);
+            scanAndHighlight('linker', undefined, log);
+          }
+        }
+        gl.deleteShader(tempVertexShader);
+        gl.deleteShader(tempFragmentShader);
+        gl.deleteProgram(tempProgram);
+      }
+
+      var vertexMirror = CodeMirror($('#vertexEditor').get(0), {
+        value: $('#defaultVertexShader').get(0).textContent,
+        mode: 'javascript',
+        lineNumbers: true,
+      });
+      var fragmentMirror = CodeMirror($('#fragmentEditor').get(0), {
+        value: $('#defaultFragmentShader').get(0).textContent,
+        mode: 'javascript',
+        lineNumbers: true,
+      });
+
+      if (hideParam == 'vertexShader') {
+        fragmentMirror.setSize('100%', '95%');
+      }
+      else if (hideParam == 'fragmentShader') {
+        vertexMirror.setSize('100%', '95%');
+      }
+      else {
+        vertexMirror.setSize('100%', '47%');
+        fragmentMirror.setSize('100%', '47%');
+      }
+
+      vertexMirror.on('change', function(thisInstance, change) {
+        shaderMaterial.vertexShader = vertexMirror.getValue();
+        shaderMaterial.needsUpdate = true;
+        testShader(shaderMaterial.vertexShader, shaderMaterial.fragmentShader);
+      });
+      fragmentMirror.on('change', function(thisInstance, change) {
+        shaderMaterial.fragmentShader = fragmentMirror.getValue();
+        shaderMaterial.needsUpdate = true;
+        testShader(shaderMaterial.vertexShader, shaderMaterial.fragmentShader);
+      });
+
+      $('#hideButton').click(function() {
+        $('#editorContainer').fadeToggle('fast');
+      });
+
+      $('#wireframeCheckbox').click(function() {
+        shaderMaterial.wireframe = $(this).is(':checked');
+      })
+
+      // -- shader sample loading code --
+      function setSample(domv, domf) {
+        vertexMirror.getDoc().setValue($(domv).get(0).textContent);
+        fragmentMirror.getDoc().setValue($(domf).get(0).textContent);
+      }
+
+      // -- graphics code --
+      // -- set up --
+      var scene = new THREE.Scene();
+      var camera = undefined; 
+      var renderer = new THREE.WebGLRenderer({antialias: true});
+      var timeStarted = new Date();
+      var activeModel = undefined;
+      var models = {};
+
+      // -- initialize uniforms --
+      var checkerboardTexture = new THREE.ImageUtils.loadTexture('textures/checkerboard.png');
+      var paintingTexture = new THREE.ImageUtils.loadTexture('textures/durer.png');
+      checkerboardTexture.wrapS = checkerboardTexture.wrapT = THREE.RepeatWrapping;
+      paintingTexture.wrapS = paintingTexture.wrapT = THREE.RepeatWrapping;
+      var uniforms = {
+          time: {type: 'f', value: 0},
+          mouse: {type: 'v2', value: new THREE.Vector2(0, 0)},
+          resolution: {type: 'v2', value: new THREE.Vector2(0, 0)},
+          checkerboardTexture: {type: 't', value: checkerboardTexture},
+          paintingTexture: {type: 't', value: paintingTexture},
+      };
+
+      $('#stage').append(renderer.domElement);
+
+      window.onresize = function() {
+        var width = window.innerWidth;
+        var height = window.innerHeight;
+        var viewingAngle = 70;
+        var aspectRatio = width / height;
+        var near = 0.1, far = 4000;
+        renderer.setSize(width, height);
+        $(renderer.domElement).attr('width', width);
+        $(renderer.domElement).attr('height', height);
+        camera = new THREE.PerspectiveCamera(viewingAngle, aspectRatio, near, far);
+
+        uniforms.resolution.value.set(width, height);
+
+        scene.add(camera);
+        camera.position.set(0, 150, 400);
+        camera.lookAt(scene.position);
+      }
+      window.onresize();
+
+      // -- initialize meshes --
+      var shaderMaterial = new THREE.ShaderMaterial({
+        vertexShader: $('#defaultVertexShader').get(0).textContent,
+        fragmentShader: $('#defaultFragmentShader').get(0).textContent,
+        uniforms: uniforms,
+      });
+      shaderMaterial.side = THREE.DoubleSide;
+
+      var loader = new THREE.JSONLoader();
+      loader.load('models/teapot.json', function(geom) {
+        var teapot = new THREE.Mesh(geom, shaderMaterial);
+        teapot.scale.set(1, 1, 1);
+        teapot.position.set(-50, -250, -1200);
+        teapot.rotation.x = Math.PI * 3.0/2.0;
+        models.teapot = teapot;
+      });
+
+      var torusGeometry = new THREE.TorusGeometry(50, 15, 16, 100);
+      var torus = new THREE.Mesh(torusGeometry, shaderMaterial);
+      torus.position.set(-10, 85, 250);
+      models.torus = torus;
+
+      var planeGeometry = new THREE.PlaneGeometry(50, 50, 50, 50);
+      var plane = new THREE.Mesh(planeGeometry, shaderMaterial);
+      plane.position.set(-3, 127, 350);
+      plane.rotation.x = -Math.PI / 9;
+      models.square = plane;
+
+      var boxGeometry = new THREE.BoxGeometry(50, 50, 50, 20, 20, 20);
+      var box = new THREE.Mesh(boxGeometry, shaderMaterial);
+      box.position.set(-7, 120, 300);
+      box.rotation.x = -Math.PI / 9;
+      models.box = box;
+
+      var sphereGeometry = new THREE.SphereGeometry(50, 32, 32);
+      var sphere = new THREE.Mesh(sphereGeometry, shaderMaterial);
+      sphere.position.set(-10, 105, 270);
+      models.sphere = sphere;
+
+      var icosahedronGeometry = new THREE.IcosahedronGeometry(50);
+      var icosahedron = new THREE.Mesh(icosahedronGeometry, shaderMaterial);
+      icosahedron.position.set(-10, 100, 270);
+      models.icosahedron = icosahedron;
+
+      var knotGeometry = new THREE.TorusKnotGeometry(50, 10, 180, 30);
+      var knot = new THREE.Mesh(knotGeometry, shaderMaterial);
+      knot.position.set(-15, 80, 250);
+      models.knot = knot;
+
+      // default model
+      scene.add(models.torus);
+
+      // model radio button change
+      $("input[name='model']").change(function() {
+        var selected = $("input[name='model']:checked").val();
+        for (var key in models) {
+          scene.remove(models[key]); // remove if it exists
+        }
+        if (selected == 'torus') {
+          scene.add(models.torus);
+        }
+        else if (selected == 'teapot') {
+          scene.add(models.teapot);
+        }
+        else if (selected == 'square') {
+          scene.add(models.square);
+        }
+        else if (selected == 'cube') {
+          scene.add(models.box);
+        }
+        else if (selected == 'sphere') {
+          scene.add(sphere);
+        }
+        else if (selected == 'icosahedron') {
+          scene.add(models.icosahedron);
+        }
+        else if (selected == 'knot') {
+          scene.add(models.knot);
+        }
+      });
+
+      // -- mouse tracking --
+      $('body').mousemove(function(event) {
+        uniforms.mouse.value.set(event.clientX, window.innerHeight - event.clientY /* flip y */);
+      });
+
+      // -- begin rendering --
+      function render() {
+        requestAnimationFrame(render);
+        renderer.render(scene, camera);
+        function update() {
+          var prevTimeElapsed = uniforms.time.value;
+          var timeElapsed = (new Date()) - timeStarted;
+          var dt = timeElapsed - prevTimeElapsed;
+          uniforms.time.value = timeElapsed;
+
+          if (models.teapot) {
+            models.teapot.rotation.z += Math.PI / 4 * (dt / 1000.0);
+          }
+          models.torus.rotation.y += Math.PI / 4 * (dt / 1000.0);
+          models.box.rotation.y += Math.PI / 4 * (dt / 1000.0);
+          models.box.rotation.z += Math.PI / 16 * (dt / 1000.0);
+          models.sphere.rotation.y += Math.PI / 16 * (dt / 1000.0);
+          models.icosahedron.rotation.x += Math.PI / 4 * (dt / 1000.0);
+          models.icosahedron.rotation.y += Math.PI / 16 * (dt / 1000.0);
+          models.knot.rotation.y += Math.PI / 4 * (dt / 1000.0);
+        }
+        update();
+      }
+      render();
+    })
+
+  </script>
+</html>

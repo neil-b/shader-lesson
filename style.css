@@ -1,0 +1,61 @@
+html, body {
+  width: 100%;
+  height: 100%;
+  margin: 0px;
+}
+
+.editorContainer {
+  position: fixed;
+  top: 5%;
+  left: 5%;
+  width: 90%;
+  height: 80%;
+  opacity: 0.8;
+
+  background-color: #333333;
+}
+
+.modelContainer {
+  position: fixed;
+  top: 85%;
+  left: 5%;
+  width: 90%;
+  height: 10%;
+  opacity: 0.8%;
+
+  background-color: #333333;
+}
+
+.shaderTitle {
+  color: #ffffff;
+  font-family: courier;
+}
+
+.modelTitle {
+  color: #ffffff;
+  font-family: courier;
+}
+
+.sampleChoice {
+  color: #ffffff;
+  font-family: courier;
+}
+
+.errorLog {
+  color: #ff5555;
+  font-family: courier;
+}
+
+.hideButton {
+  position: fixed;
+  right: 6%;
+  top: 90%;
+  padding: 0.2em;
+
+  color: #ffffff;
+  font-family: courier;
+  background-color: #3333cc;
+  border-radius: 5px;
+
+  cursor: pointer;
+}
