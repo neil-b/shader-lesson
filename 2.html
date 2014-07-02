@@ -1,0 +1,71 @@
+<html>
+  <script src="./jquery-1.11.0.min.js"></script>
+  <link rel="stylesheet" type="text/css" href="./tutorial.css">
+  <head>
+  </head>
+  <body>
+    <script id="f_ex_red" type="x-shader/x-fragment">
+/* fragment shader */
+void main() {
+  gl_FragColor = vec4(1., 0., 0., 1.);
+}
+    </script>
+    <script id="f_ex_gradient" type="x-shader/x-fragment">
+/* fragment shader */
+uniform vec2 resolution;
+
+void main() {
+  vec4 color = vec4(gl_FragCoord.xyx / resolution.xyx, 1.);
+  gl_FragColor = color;
+}
+    </script>
+    <script id="f_ex_gradient_animate" type="x-shader/x-fragment">
+/* fragment shader */
+uniform float time;
+uniform vec2 resolution;
+
+void main() {
+  gl_FragColor = vec4( (sin(mod(time * 0.005, 1000.0)) + 1.) / 2., gl_FragCoord.xy / resolution.xy, 1.); 
+}
+    </script>
+    Fragment shaders are pretty similar to vertex shaders, instead of setting <tt>gl_Position</tt> to a new position in 4d space, <tt>gl_FragColor</tt> is set to the new color of the fragment (pixel) in 4d rgba color. Note: color values in GLSL range from [0.0, 1.0], <i>not</i> [0, 255].<br><br>
+
+    To start off, try writing a fragment shader that colors every fragment red.
+    <div id="fex1"></div><br>
+
+    Fragment shaders have a built-in constant called <tt>gl_FragCoord</tt>. Unlike <tt>gl_FragColor</tt> it is not meant to be set, only read. It's a <tt>vec2</tt> (2d vector) that contains the position of the fragment (in pixels) on the screen, where (0, 0) represents the <i>bottom-left</i>-most pixel of the screen.<br><br>
+
+    Using <tt>gl_FragCoord</tt>, modify your fragment shader to gradually change color per fragment. Hint: the x and y values of <tt>gl_FragCoord</tt> range from 0 to the number of vertical / horizontal pixels in the window. Use one of our uniforms to scale <tt>gl_FragCoord</tt> to values in the range (0, 1).
+    <div id="fex2"></div><br>
+
+    Try using the <tt>time</tt> uniform and the <a href="http://www.opengl.org/sdk/docs/man4/html/mod.xhtml"><tt>mod()</tt></a> function to animate the green channel. You may notice the color abruptly changes after each cycle. Use <a href="http://www.opengl.org/sdk/docs/man4/html/sin.xhtml"><tt>sin()</tt></a> to give your shader a smoother transition between cycles.
+    <div id="fex3"></div><br>
+
+    <a href="1.html">&lt; Vertex shaders</a>
+    <a style="float:right;" href="3.html">Fragment and vertex shaders &gt;</a>
+
+  </body>
+  <script>
+    $(function() {
+      function addShaderFrame(out, urlParams) {
+        $('<iframe>', {
+          src: 'index.html?' + urlParams,
+          scrolling: 'no',
+        }).appendTo(out);
+      }
+
+      function shaderIdToSrc(id) {
+        return $('#' + id).get(0).textContent;
+      }
+
+      addShaderFrame('#fex1', 'hideEditor=vertexShader');
+      addShaderFrame('#fex1', 'hideEditor=all&fragmentSrc=' + shaderIdToSrc('f_ex_red'));
+
+      addShaderFrame('#fex2', 'hideEditor=vertexShader');
+      addShaderFrame('#fex2', 'hideEditor=all&fragmentSrc=' + shaderIdToSrc('f_ex_gradient'));
+
+      addShaderFrame('#fex3', 'hideEditor=vertexShader');
+      addShaderFrame('#fex3', 'hideEditor=all&fragmentSrc=' + shaderIdToSrc('f_ex_gradient_animate'));
+    });
+  </script>
+</html>

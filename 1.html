@@ -1,0 +1,88 @@
+<html>
+  <script src="./jquery-1.11.0.min.js"></script>
+  <link rel="stylesheet" type="text/css" href="./tutorial.css">
+  <head>
+  </head>
+  <body>
+    <script id="v_ex_flatten" type="x-shader/x-vertex">
+/* vertex shader */
+void main() {
+  vec3 flatPosition = position;
+  flatPosition.z = 0.;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(flatPosition, 1.);
+}
+    </script>
+    <script id="v_ex_flag" type="x-shader/x-vertex">
+/* vertex shader */
+uniform float time;
+
+void main() {
+  vec3 position2 = position;
+  position2.z = sin((position.x * 10. + time) / 100.) * 11.;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position2, 1.);
+}
+    </script>
+    <script id="v_ex_gelatin" type="x-shader/x-vertex">
+/* vertex shader */
+uniform float time;
+
+void main() {
+  vec3 position2 = position;
+  position2.z += sin((position.x * 10. + time) / 100.) * 5.;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position2, 1.);
+}
+    </script>
+
+    In OpenGL, shaders are small pieces of code that run on graphics processing units and operate in parallel on incoming vertex or fragment (pixel) data. Since GPUs are built to perform the same operations in parallel on large data sets, shaders can give us effects that would take far too long to process on a CPU. Fragment and pixel shaders are compiled together into one shader program, which can then be set as active by an OpenGL function call. An active shader program's vertex and fragment shaders will automatically be invoked by OpenGL in different parts of the rendering pipeline. See below for a simplified version of the rendering pipeline with vertex and fragment shaders.
+<br><br>
+    1. Vertices sent by the user (eg <tt>glBegin(); ... glEnd();</tt>) are processed by the vertex shader.<br>
+    2. Vertices coming out from the vertex shader are rasterized (Shapes are converted into screen pixel values).<br>
+    3. Pixel values from the rasterization step are sent to the fragment shader.<br>
+    4. Pixel values from the fragment shader are sent to the framebuffer.<br>
+    5. Contents of framebuffer are drawn to the screen.
+<br><br>
+    Both vertex and fragment shaders are written in a language called GLSL (OpenGL Shading Language), which is syntactically similar to C. Both vertex and fragment shaders must consist of a <tt>void main()</tt> function. For the vertex shader, <tt>main()</tt> must assign <tt>gl_Position</tt> to a <tt>vec4</tt> (a 4 dimensional vector) representing the position of the vector in homogenous coordinates (if you're unsure about this, just use 1.0 for the 4th dimension and treat the xyz coordinates as if they were in traditional 3d space.).
+
+    A simple vertex shader can be seen below. Note: <tt>projectionMatrix</tt>, <tt>modelViewMatrix</tt>, <tt>position</tt> and <tt>normal</tt> are not built into the language, but are already defined behind the scenes for your convenience.
+    <div id="vex0"></div><br>
+    This shader just sets the value of the outgoing vertex data (<tt>gl_Position</tt>) to the value of the transformed incoming vertex data (<tt>position</tt>) by multiplying it by <tt>modelViewMatrix</tt> and <tt>projectionMatrix</tt>. The shader source is editable, and will update right as you change the it, so try making some changes to get comfortable with the language.<br>
+
+    For an exercise, try editing the vertex shader on the left so that the output matches the flat object on the right.
+    <div id="vex1"></div><br>
+
+    You may have noticed the <tt>uniform</tt> definitions at the start of the vertex shader. Uniforms are user-defined variables that are <i>read-only</i> in the shader, but can be written to from the CPU (eg, whatever C++, python, etc source is making the OpenGL calls). For example, if we had a shader that lighted the objects of a scene based on the location and color of a light, we would simply create uniforms to send the light position and color to the shader. Because this webpage only allows access to the GLSL shaders, and not the underlying javascript code behind the OpenGL calls, you can't create your own uniforms on this page. However, we have set some uniforms (as you can see in the shader source) that you can use instead.<br><br>
+
+    Try using the <tt>time</tt> uniform and the <a href=http://www.opengl.org/sdk/docs/man4/html/sin.xhtml><tt>sin()</tt></a> function to make your flat shape look like a flag in the wind. Hint: use <tt>position.x</tt>, <tt>position.y</tt> (or even <tt>position.x * position.y</tt>, <tt><a href="http://www.opengl.org/sdk/docs/man4/html/pow.xhtml">pow</a>(position.x, 2)</tt>, etc.) in your call to <tt>sin()</tt>, so that "waviness" depends on the position of the vertex. Also add the <tt>time</tt> uniform in your call to <tt>sin()</tt> so that the waviness changes and animates over time.
+    <div id="vex2"></div><br>
+
+    With a small change to the "flag" shader, we can get a gelatin-like effect. Try to editing your previous shader to see if you can figure out how.
+    <div id="vex3"></div><br>
+
+    <a style="float:right;" href="2.html">Fragment shaders &gt;</a>
+
+  </body>
+  <script>
+    $(function() {
+      function addShaderFrame(out, urlParams) {
+        $('<iframe>', {
+          src: 'index.html?' + urlParams,
+          scrolling: 'no',
+        }).appendTo(out);
+      }
+
+      function shaderIdToSrc(id) {
+        return $('#' + id).get(0).textContent;
+      }
+
+      addShaderFrame('#vex0', 'hideEditor=fragmentShader');
+
+      addShaderFrame('#vex1', 'hideEditor=fragmentShader');
+      addShaderFrame('#vex1', 'hideEditor=all&vertexSrc=' + shaderIdToSrc('v_ex_flatten'));
+
+      addShaderFrame('#vex2', 'hideEditor=fragmentShader');
+      addShaderFrame('#vex2', 'hideEditor=all&vertexSrc=' + shaderIdToSrc('v_ex_flag'));
+
+      addShaderFrame('#vex3', 'hideEditor=all&vertexSrc=' + shaderIdToSrc('v_ex_gelatin'));
+    });
+  </script>
+</html>

@@ -1,0 +1,12 @@
+html, body {
+  padding: 1em;
+}
+
+iframe {
+  width: 45%;
+  height: 30em;
+}
+
+div {
+  text-align: center;
+}
